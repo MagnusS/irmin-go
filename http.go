@@ -35,29 +35,35 @@ const (
 	COMMAND_TAG
 )
 
-type CommandsReply struct {
+type StringArrayReply struct {
 	Result  []IrminString
 	Error   IrminString
 	Version IrminString
 }
 
-type ListReply struct {
+type StringReply struct {
+	Result  []IrminString
+	Error   IrminString
+	Version IrminString
+}
+
+type PathArrayReply struct {
 	Result  []IrminPath
 	Error   IrminString
 	Version IrminString
 }
 
-type MemReply struct {
+type BoolReply struct {
 	Result  bool
 	Error   IrminString
 	Version IrminString
 }
 
-type ReadReply struct {
-	Result  []IrminString
-	Error   IrminString
-	Version IrminString
-}
+type CommandsReply StringArrayReply
+type ListReply PathArrayReply
+type MemReply BoolReply
+type ReadReply StringArrayReply
+type CloneReply StringReply
 
 type StreamReply struct {
 	Error  IrminString
@@ -326,4 +332,31 @@ func (rest *RestConn) Iter() (<-chan *IrminPath, error) {
 	}()
 
 	return out, err
+}
+
+func (rest *RestConn) Clone(name string, force bool) error {
+	var data CloneReply
+	var err error
+	path, err := ParseEncodedPath(url.QueryEscape(name)) // encode and wrap in IrminPath
+	if err != nil {
+		return err
+	}
+	command := "clone"
+	if force {
+		command = "clone-force"
+	}
+	if err = rest.runCommand(COMMAND_TREE, command, path, &data); err != nil {
+		return err
+	}
+	if data.Error.String() != "" {
+		return fmt.Errorf(data.Error.String())
+	}
+	if len(data.Result) > 1 {
+		return fmt.Errorf("%s %s returned more than one result", command, name)
+	}
+	if (data.Result[0].String() != "ok") || (data.Result[0].String() == "" && force) {
+		return fmt.Errorf(data.Result[0].String())
+	}
+
+	return nil
 }
