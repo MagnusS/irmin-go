@@ -25,15 +25,19 @@ import (
 
 type IrminString []byte
 
+func NewIrminString(s string) IrminString {
+	return []byte(s)
+}
+
 func (i *IrminString) String() string {
 	return string(*i)
 }
 
 func (i *IrminString) MarshalJSON() ([]byte, error) {
 	if utf8.Valid(*i) {
-		return *i, nil /* output as string if valid utf8 */
+		return []byte(fmt.Sprintf("\"%s\"", *i)), nil /* output as string if valid utf8 */
 	} else {
-		return []byte(fmt.Sprintf("{ hex: \"%x\" }", *i)), nil /* if not valid, output in hex format */
+		return []byte(fmt.Sprintf("{ \"hex\" : \"%x\" }", *i)), nil /* if not valid, output in hex format */
 	}
 }
 

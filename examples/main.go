@@ -1,8 +1,9 @@
 package main
 
 import (
+	"../irmin"
+	"bytes"
 	"fmt"
-	"irmin"
 	"net/url"
 )
 
@@ -35,7 +36,7 @@ import (
 }*/
 
 func main() {
-	uri, err := url.Parse("http://10.0.1.9:8080")
+	uri, err := url.Parse("http://127.0.0.1:8080")
 	if err != nil {
 		panic(err)
 	}
@@ -91,5 +92,21 @@ func main() {
 			}
 			fmt.Printf("%s=%s\n", (*p).String(), d)
 		}
+	}
+	{ // update + read
+		key := "g"
+		fmt.Printf("update %s=hello world\n", key)
+		data := bytes.NewBuffer([]byte("Hello world"))
+		hash, err := r.Update(irmin.ParsePath(key), data)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("update hash: %s\n", hash)
+		fmt.Printf("read %s\n", key)
+		d, err := r.ReadString(irmin.ParsePath(key))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("%s=%s\n", key, d)
 	}
 }
