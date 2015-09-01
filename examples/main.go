@@ -2,7 +2,6 @@ package main
 
 import (
 	"../irmin"
-	"bytes"
 	"fmt"
 	"net/url"
 )
@@ -41,7 +40,7 @@ func main() {
 		panic(err)
 	}
 
-	r := irmin.Create(*uri)
+	r := irmin.Create(*uri, "api-tester")
 	{ // get version
 		v, err := r.Version()
 		if err != nil {
@@ -96,8 +95,8 @@ func main() {
 	{ // update + read
 		key := "g"
 		fmt.Printf("update %s=hello world\n", key)
-		data := bytes.NewBuffer([]byte("Hello world"))
-		hash, err := r.Update(irmin.ParsePath(key), data)
+		data := []byte("Hello world")
+		hash, err := r.Update(r.NewTask("update key"), irmin.ParsePath(key), &data)
 		if err != nil {
 			panic(err)
 		}
