@@ -68,8 +68,8 @@ type Task struct {
 }
 
 type PostRequest struct {
-	Task Task        `json:"task"`
-	Data IrminString `json:"params,omitempty"`
+	Task Task            `json:"task"`
+	Data json.RawMessage `json:"params,omitempty"`
 }
 
 type CommandsReply StringArrayReply
@@ -361,12 +361,18 @@ func (rest *RestConn) ReadString(path IrminPath) (string, error) {
 
 // Update a key. Returns hash as string on success.
 func (rest *RestConn) Update(t Task, path IrminPath, contents *[]byte) (string, error) {
-	// TODO This command should return the hash on success
 	var data UpdateReply
 	var err error
+
 	var body PostRequest
-	body.Data = *contents
+
+	body.Data, err = ((*IrminString)(contents)).MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+
 	body.Task = t
+
 	if err = rest.runCommand(COMMAND_TREE, "update", path, &body, &data); err != nil {
 		return data.Result.String(), err
 	}
@@ -464,4 +470,33 @@ func (rest *RestConn) Clone(name string, force bool) error {
 	}
 
 	return nil
+}
+
+// Compare and set a key if the current value is equal to the given value.
+func (rest *RestConn) CompareAndSet(t Task, path IrminPath, oldcontents *[]byte, contents *[]byte) (string, error) {
+	var data UpdateReply
+	var err error
+
+	var body PostRequest
+
+	post := [][]*IrminString{[]*IrminString{(*IrminString)(oldcontents)}, []*IrminString{(*IrminString)(contents)}}
+
+	body.Data, err = json.Marshal(&post)
+	if err != nil {
+		return "", err
+	}
+
+	body.Task = t
+
+	if err = rest.runCommand(COMMAND_TREE, "compare-and-set", path, &body, &data); err != nil {
+		return data.Result.String(), err
+	}
+	if data.Error.String() != "" {
+		return "", fmt.Errorf(data.Error.String())
+	}
+	if data.Result.String() == "" {
+		return "", fmt.Errorf("update seemed to succeed, but didn't return a hash", path.String(), data.Result.String())
+	}
+
+	return data.Result.String(), nil
 }

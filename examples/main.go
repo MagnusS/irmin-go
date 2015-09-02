@@ -108,4 +108,21 @@ func main() {
 		}
 		fmt.Printf("%s=%s\n", key, d)
 	}
+	{ // compare-and-set
+		key := "g"
+		oldData := []byte("Hello world")
+		newData := []byte("asdf")
+		fmt.Printf("compare-and-set %s=%s to %s\n", key, oldData, newData)
+		hash, err := r.CompareAndSet(r.NewTask("compare-and-set key"), irmin.ParsePath(key), &oldData, &newData)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("compare-and-set hash: %s\n", hash)
+		fmt.Printf("read %s\n", key)
+		d, err := r.ReadString(irmin.ParsePath(key))
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("%s=%s\n", key, d)
+	}
 }
