@@ -13,3 +13,8 @@ This code is work in progress and not all commands are implemented yet. The Irmi
  - compare-and-set
  - remove, remove-rec
 
+```
+irmin init -d -v --root /tmp/irmin/test -a http://:8080
+# run e.g. irmin views example
+go run examples/main.go
+```
