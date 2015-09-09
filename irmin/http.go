@@ -100,9 +100,11 @@ func Create(uri *url.URL, taskowner string) *RestConn {
 	return r
 }
 
-// Set tree position used for Tree sub-commands. Empty defaults to master
-func (rest *RestConn) SetTree(tree string) {
-	rest.tree = tree
+// Return new connection with a new tree position. Empty defaults to master
+func (rest *RestConn) FromTree(tree string) *RestConn {
+	t := *rest
+	t.tree = tree
+	return &t
 }
 
 // Read the current tree position use for Tree sub-commands. Empty defaults to master.
@@ -110,10 +112,12 @@ func (rest *RestConn) Tree() string {
 	return rest.tree
 }
 
+// Returns name of task owner
 func (rest *RestConn) TaskOwner() string {
 	return rest.taskowner
 }
 
+// Set task owner name
 func (rest *RestConn) SetTaskOwner(owner string) {
 	rest.taskowner = owner
 }
@@ -168,6 +172,7 @@ func (rest *RestConn) MakeCallUrl(ct SubCommandType, command string, path IrminP
 	return rest.base_uri.ResolveReference(suffix), nil
 }
 
+// Run the specified HTTP command and return the full body of the result.
 func (rest *RestConn) runCommand(ct SubCommandType, command string, path IrminPath, post *PostRequest, v interface{}) (err error) {
 	uri, err := rest.MakeCallUrl(ct, command, path)
 	if err != nil {
@@ -272,6 +277,7 @@ func (rest *RestConn) runStreamCommand(ct SubCommandType, command string, path I
 	return ch, nil
 }
 
+// Returns list of available commands
 func (rest *RestConn) AvailableCommands() ([]string, error) {
 	var data CommandsReply
 	var err error
@@ -289,6 +295,7 @@ func (rest *RestConn) AvailableCommands() ([]string, error) {
 	return r, nil
 }
 
+// Returns Irmin version
 func (rest *RestConn) Version() (string, error) {
 	var data CommandsReply
 	var err error
@@ -302,6 +309,7 @@ func (rest *RestConn) Version() (string, error) {
 	return data.Version.String(), nil
 }
 
+// Returns list of keys in a path
 func (rest *RestConn) List(path IrminPath) ([]IrminPath, error) {
 	var data ListReply
 	var err error
@@ -315,6 +323,7 @@ func (rest *RestConn) List(path IrminPath) ([]IrminPath, error) {
 	return data.Result, nil
 }
 
+// Returns true if a path exists
 func (rest *RestConn) Mem(path IrminPath) (bool, error) {
 	var data MemReply
 	var err error
@@ -328,6 +337,7 @@ func (rest *RestConn) Mem(path IrminPath) (bool, error) {
 	return data.Result, nil
 }
 
+// Read key value as byte array
 func (rest *RestConn) Read(path IrminPath) ([]byte, error) {
 	var data ReadReply
 	var err error
@@ -347,6 +357,7 @@ func (rest *RestConn) Read(path IrminPath) ([]byte, error) {
 	}
 }
 
+// Read key value as string. The key value must contain a valid UTF-8 encoded string.
 func (rest *RestConn) ReadString(path IrminPath) (string, error) {
 	res, err := rest.Read(path)
 	if err != nil {
@@ -386,7 +397,7 @@ func (rest *RestConn) Update(t Task, path IrminPath, contents *[]byte) (string, 
 	return data.Result.String(), nil
 }
 
-/* Remove file */
+// Remove key
 func (rest *RestConn) Remove(t Task, path IrminPath) error {
 	var data RemoveReply
 	var err error
@@ -404,7 +415,7 @@ func (rest *RestConn) Remove(t Task, path IrminPath) error {
 	return nil
 }
 
-/* Remove directory */
+// Remove key recursively
 func (rest *RestConn) RemoveRec(t Task, path IrminPath) error {
 	var data RemoveReply
 	var err error
@@ -422,6 +433,7 @@ func (rest *RestConn) RemoveRec(t Task, path IrminPath) error {
 	return nil
 }
 
+// Iterate through all keys in database. Returns results in a channel as they are received.
 func (rest *RestConn) Iter() (<-chan *IrminPath, error) {
 	var ch <-chan *StreamReply
 	var err error
@@ -445,6 +457,7 @@ func (rest *RestConn) Iter() (<-chan *IrminPath, error) {
 	return out, err
 }
 
+// Clone the current tree and create a named tag. Force overwrites a previous clone with the same name.
 func (rest *RestConn) Clone(name string, force bool) error {
 	var data CloneReply
 	var err error
