@@ -31,9 +31,8 @@ import (
 type SubCommandType int
 
 const (
-	COMMAND_PLAIN SubCommandType = iota
-	COMMAND_TREE
-	COMMAND_TAG
+	COMMAND_NORMAL SubCommandType = iota // NORMAL - command is appended to base url
+	COMMAND_TREE                         // TREE - command is executed in the context of a tree
 )
 
 type StringArrayReply struct {
@@ -90,6 +89,7 @@ type RestConn struct {
 	base_uri  *url.URL
 	tree      string
 	taskowner string
+	log       Log
 }
 
 // Create an Irmin REST HTTP connection data structure
@@ -97,7 +97,13 @@ func Create(uri *url.URL, taskowner string) *RestConn {
 	r := new(RestConn)
 	r.base_uri = uri
 	r.taskowner = taskowner
+	r.log = IgnoreLog{}
 	return r
+}
+
+// Set log implementation. Default is to ignore log output.
+func (rest *RestConn) SetLog(log Log) {
+	rest.log = log
 }
 
 // Return new connection with a new tree position. Empty defaults to master
@@ -132,8 +138,7 @@ func (rest *RestConn) NewTask(message string) Task {
 	return t
 }
 
-// Create invocation URL for a command with an optional sub command type (typically COMMAND_TAG or COMMAND_TREE).
-// Note that the commands generally applies to master or head respectively if Tree() is not set in the data structure
+// Create invocation URL for a command with an optional sub command type
 func (rest *RestConn) MakeCallUrl(ct SubCommandType, command string, path IrminPath) (*url.URL, error) {
 	var suffix *url.URL
 	var err error
@@ -144,27 +149,22 @@ func (rest *RestConn) MakeCallUrl(ct SubCommandType, command string, path IrminP
 	var parent_param string
 
 	switch ct {
-	case COMMAND_PLAIN:
-		parent_command = ""
-		parent_param = ""
+	case COMMAND_NORMAL:
 	case COMMAND_TREE:
 		if rest.Tree() != "" { // Ignore the parameter if Tree is not set
 			parent_command = "tree"
-			parent_param = rest.Tree()
+			parent_param = url.QueryEscape(rest.Tree())
 		}
-	case COMMAND_TAG:
-		parent_command = "tag"
-		parent_param = ""
 	default:
 		return nil, fmt.Errorf("unknown command type %d", ct)
 	}
 
 	if parent_command == "" {
-		if suffix, err = url.Parse(fmt.Sprintf("/%s%s", url.QueryEscape(command), p.String())); err != nil {
+		if suffix, err = url.Parse(fmt.Sprintf("/%s%s", command, p.String())); err != nil {
 			return nil, err
 		}
 	} else {
-		if suffix, err = url.Parse(fmt.Sprintf("/%s/%s/%s/%s%s", url.QueryEscape(parent_command), url.QueryEscape(parent_param), url.QueryEscape(command), p.String())); err != nil {
+		if suffix, err = url.Parse(fmt.Sprintf("/%s/%s/%s/%s%s", parent_command, parent_param, command, p.String())); err != nil {
 			return nil, err
 		}
 	}
@@ -178,6 +178,7 @@ func (rest *RestConn) runCommand(ct SubCommandType, command string, path IrminPa
 	if err != nil {
 		return
 	}
+	rest.log.Printf("calling: %s\n", uri.String())
 	var res *http.Response
 	if post == nil {
 		res, err = http.Get(uri.String())
@@ -186,7 +187,7 @@ func (rest *RestConn) runCommand(ct SubCommandType, command string, path IrminPa
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("body %s\n", j)
+		rest.log.Printf("post body: %s\n", j)
 		res, err = http.Post(uri.String(), "application/json", bytes.NewBuffer(j))
 	}
 	if err != nil {
@@ -197,6 +198,7 @@ func (rest *RestConn) runCommand(ct SubCommandType, command string, path IrminPa
 	if err != nil {
 		return
 	}
+	rest.log.Printf("returned: %s\n", body)
 
 	return json.Unmarshal(body, v)
 }
@@ -371,13 +373,14 @@ func (rest *RestConn) ReadString(path IrminPath) (string, error) {
 }
 
 // Update a key. Returns hash as string on success.
-func (rest *RestConn) Update(t Task, path IrminPath, contents *[]byte) (string, error) {
+func (rest *RestConn) Update(t Task, path IrminPath, contents []byte) (string, error) {
 	var data UpdateReply
 	var err error
 
 	var body PostRequest
+	i := IrminString(contents)
 
-	body.Data, err = ((*IrminString)(contents)).MarshalJSON()
+	body.Data, err = i.MarshalJSON()
 	if err != nil {
 		return "", err
 	}
@@ -426,8 +429,8 @@ func (rest *RestConn) RemoveRec(t Task, path IrminPath) error {
 	if data.Error.String() != "" {
 		return fmt.Errorf(data.Error.String())
 	}
-	if len(data.Result) > 1 {
-		return fmt.Errorf("remove %s returned more than one result", path.String())
+	if data.Result.String() == "" {
+		return fmt.Errorf("remove-rec %s returned empty result", path.String())
 	}
 
 	return nil
@@ -458,7 +461,7 @@ func (rest *RestConn) Iter() (<-chan *IrminPath, error) {
 }
 
 // Clone the current tree and create a named tag. Force overwrites a previous clone with the same name.
-func (rest *RestConn) Clone(name string, force bool) error {
+func (rest *RestConn) Clone(t Task, name string, force bool) error {
 	var data CloneReply
 	var err error
 	path, err := ParseEncodedPath(url.QueryEscape(name)) // encode and wrap in IrminPath
@@ -469,7 +472,8 @@ func (rest *RestConn) Clone(name string, force bool) error {
 	if force {
 		command = "clone-force"
 	}
-	if err = rest.runCommand(COMMAND_TREE, command, path, nil, &data); err != nil {
+	body := PostRequest{t, nil}
+	if err = rest.runCommand(COMMAND_TREE, command, path, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {

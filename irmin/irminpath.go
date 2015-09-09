@@ -31,6 +31,7 @@ func (path *IrminPath) Delim() rune {
 
 // Parse a path string by splitting into segments separated by '/'. Each segment may be PCT encoded to escape '/' in the name. (see url.QueryEscape)
 func ParseEncodedPath(p string) (IrminPath, error) {
+	// TODO use delim() here
 	segs := strings.Split(strings.Trim(p, " /"), "/")
 	is := make([]IrminString, len(segs))
 	for i := range segs {
@@ -46,6 +47,7 @@ func ParseEncodedPath(p string) (IrminPath, error) {
 
 // Parse a path string by splitting into segments separated by '/'. See also ParseEncoded.
 func ParsePath(p string) IrminPath {
+	// TODO use delim() here
 	segs := strings.Split(strings.Trim(p, " /"), "/")
 	is := make([]IrminString, len(segs))
 	for i := range segs {

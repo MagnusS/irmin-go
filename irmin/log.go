@@ -14,28 +14,14 @@
  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
-package main
+package irmin
 
-import (
-	"../../irmin"
-	"fmt"
-	"net/url"
-)
+type Log interface {
+	Printf(format string, args ...interface{})
+}
 
-func main() {
-	uri, _ := url.Parse("http://127.0.0.1:8080")
-	r := irmin.Create(uri, "tree")
+type IgnoreLog struct{}
 
-	ch, err := r.Iter() // Iterate through all keys
-	if err != nil {
-		panic(err)
-	}
-
-	for path := range ch {
-		d, err := r.ReadString(*path) // Read key
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("%s=%s\n", (*path).String(), d)
-	}
+func (i IgnoreLog) Printf(format string, args ...interface{}) {
+	return
 }
