@@ -14,7 +14,7 @@ func main() {
 		panic(err)
 	}
 
-	r := irmin.Create(*uri, "api-tester")
+	r := irmin.Create(uri, "api-tester")
 	{ // get version
 		v, err := r.Version()
 		if err != nil {

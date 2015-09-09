@@ -93,9 +93,9 @@ type RestConn struct {
 }
 
 // Create an Irmin REST HTTP connection data structure
-func Create(uri url.URL, taskowner string) *RestConn {
+func Create(uri *url.URL, taskowner string) *RestConn {
 	r := new(RestConn)
-	r.base_uri = &uri
+	r.base_uri = uri
 	r.taskowner = taskowner
 	return r
 }
@@ -495,7 +495,7 @@ func (rest *RestConn) CompareAndSet(t Task, path IrminPath, oldcontents *[]byte,
 		return "", fmt.Errorf(data.Error.String())
 	}
 	if data.Result.String() == "" {
-		return "", fmt.Errorf("update seemed to succeed, but didn't return a hash", path.String(), data.Result.String())
+		return "", fmt.Errorf("compare-and-set seemed to succeed, but didn't return a hash", path.String(), data.Result.String())
 	}
 
 	return data.Result.String(), nil
