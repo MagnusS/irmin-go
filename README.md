@@ -15,6 +15,8 @@ This code is work in progress and not all commands are implemented yet. The Irmi
 
 ```
 irmin init -d -v --root /tmp/irmin/test -a http://:8080
-# run e.g. irmin views example
+# examples
+go run examples/views/views.go
 go run examples/main.go
+go run examples/tree/tree.go
 ```
