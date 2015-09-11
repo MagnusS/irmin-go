@@ -12,6 +12,7 @@ This code is work in progress and not all commands are implemented yet. The Irmi
  - clone, clone-force
  - compare-and-set
  - remove, remove-rec
+ - view/{update, read, merge-path, update-path}
 
 ```
 irmin init -d -v --root /tmp/irmin/test -a http://:8080
