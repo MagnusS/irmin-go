@@ -84,6 +84,15 @@ func main() {
 	}
 	fmt.Printf("update view 2=%s\n", s)
 
+	// Iterate through updated view
+	ch, err := v2.Iter()
+	if err != nil {
+		panic(err)
+	}
+	for p := range ch {
+		fmt.Printf("View path: %s\n", p.String())
+	}
+
 	// Merge view 2
 
 	fmt.Printf("merge view 2=%s\n", s)

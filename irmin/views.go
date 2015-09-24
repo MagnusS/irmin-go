@@ -17,6 +17,7 @@
 package irmin
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -171,7 +172,7 @@ func (view *View) UpdatePath(t Task, tree string, path IrminPath) error {
 
 	body := PostRequest{t, nil}
 
-	cmd := fmt.Sprintf("/tree/%s/view/%s/update-path", url.QueryEscape(tree), url.QueryEscape(view.node))
+	cmd := fmt.Sprintf("tree/%s/view/%s/update-path", url.QueryEscape(tree), url.QueryEscape(view.node))
 	if err = view.srv.runCommand(COMMAND_NORMAL, cmd, path, &body, &data); err != nil {
 		return err
 	}
@@ -183,4 +184,29 @@ func (view *View) UpdatePath(t Task, tree string, path IrminPath) error {
 	}
 
 	return nil
+}
+
+// Iterate through all keys in a view. Returns results in a channel as they are received.
+func (view *View) Iter() (<-chan *IrminPath, error) {
+	var ch <-chan *StreamReply
+	var err error
+	cmd := fmt.Sprintf("view/%s/iter", url.QueryEscape(view.node))
+	if ch, err = view.srv.runStreamCommand(COMMAND_NORMAL, cmd, IrminPath{}, nil); err != nil || ch == nil {
+		return nil, err
+	}
+
+	out := make(chan *IrminPath, 1)
+
+	go func() {
+		defer close(out)
+		for m := range ch {
+			p := new(IrminPath)
+			if err := json.Unmarshal(m.Result, &p); err != nil {
+				panic(err) // TODO This should be returned to caller
+			}
+			out <- p
+		}
+	}()
+
+	return out, err
 }
