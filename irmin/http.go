@@ -129,13 +129,18 @@ func (rest *RestConn) SetTaskOwner(owner string) {
 }
 
 // Create a new task that can be be submitted with a command
-func (rest *RestConn) NewTask(message string) Task {
+func NewTask(taskowner string, message string) Task {
 	var t Task
 	t.Date = fmt.Sprintf("%d", time.Now().Unix())
 	t.Uid = "0"
-	t.Owner = NewIrminString(rest.taskowner)
+	t.Owner = NewIrminString(taskowner)
 	t.Messages = []IrminString{NewIrminString(message)}
 	return t
+}
+
+// Create a new task that can be be submitted with a command
+func (rest *RestConn) NewTask(message string) Task {
+	return NewTask(rest.taskowner, message)
 }
 
 // Create invocation URL for a command with an optional sub command type

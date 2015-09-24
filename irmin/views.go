@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -209,4 +210,9 @@ func (view *View) Iter() (<-chan *IrminPath, error) {
 	}()
 
 	return out, err
+}
+
+// Create a new task that can be be submitted with a command
+func (view *View) NewTask(message string) Task {
+	return NewTask(view.srv.taskowner, message)
 }
