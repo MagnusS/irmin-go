@@ -39,7 +39,11 @@ func (i *Value) String() string {
 // MarshalJSON returns a JSON encoded value. If the value is valid UTF-8 it will be encoded as a string, otherwise it will be encoded as a list of hex values.
 func (i *Value) MarshalJSON() ([]byte, error) {
 	if utf8.Valid(*i) {
-		return []byte(fmt.Sprintf("\"%s\"", *i)), nil /* output as string if valid utf8 */
+		b, err := json.Marshal(string(*i))
+		if err != nil {
+			return nil, err
+		}
+		return []byte(fmt.Sprintf("%s", b)), nil /* output as string if valid utf8 */
 	}
 	return []byte(fmt.Sprintf("{ \"hex\" : \"%x\" }", *i)), nil /* if not valid, output in hex format */
 }

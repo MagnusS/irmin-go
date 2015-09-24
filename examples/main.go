@@ -85,7 +85,7 @@ func main() {
 	{ // update + read
 		key := "g"
 		fmt.Printf("update %s=hello world\n", key)
-		data := []byte("Hello world")
+		data := []byte("Hello \"world")
 		hash, err := r.Update(r.NewTask("update key"), irmin.ParsePath(key), data)
 		if err != nil {
 			panic(err)
