@@ -22,7 +22,7 @@ import (
 	"net/url"
 )
 
-func list_db(r *irmin.RestConn) {
+func listDb(r *irmin.Conn) {
 	ch, err := r.Iter() // Iterate through all keys
 	if err != nil {
 		panic(err)
@@ -54,20 +54,20 @@ func main() {
 	}
 
 	// Create a key in /view-test
-	s, err := r.Update(r.NewTask("update key /view-test/exists"), irmin.ParsePath("/view-test/exists"), irmin.NewIrminString("hello world"))
+	s, err := r.Update(r.NewTask("update key /view-test/exists"), irmin.ParsePath("/view-test/exists"), irmin.NewValue("hello world"))
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("update=%s\n", s)
 
-	list_db(r)
+	listDb(r)
 
 	// Create view #1 from /view-test
 	v1, err := r.CreateView(r.NewTask("create view 1"), irmin.ParsePath("/view-test/"))
 	if err != nil {
 		panic(err)
 	}
-	s, err = v1.Update(r.NewTask("add key"), irmin.ParsePath("from-view-1"), irmin.NewIrminString("hello world from view 1"))
+	s, err = v1.Update(r.NewTask("add key"), irmin.ParsePath("from-view-1"), irmin.NewValue("hello world from view 1"))
 	if err != nil {
 		panic(err)
 	}
@@ -78,7 +78,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	s, err = v2.Update(r.NewTask("add key"), irmin.ParsePath("from-view-2"), irmin.NewIrminString("hello world from view 2"))
+	s, err = v2.Update(r.NewTask("add key"), irmin.ParsePath("from-view-2"), irmin.NewValue("hello world from view 2"))
 	if err != nil {
 		panic(err)
 	}
@@ -109,5 +109,5 @@ func main() {
 		panic(err)
 	}
 
-	list_db(r)
+	listDb(r)
 }

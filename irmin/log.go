@@ -16,12 +16,15 @@
 
 package irmin
 
+// Log is a generic log interface that implements a Printf function
 type Log interface {
 	Printf(format string, args ...interface{})
 }
 
+// IgnoreLog is an implementation of Log that ignores all log messages
 type IgnoreLog struct{}
 
+// Printf implementation that ignores its input and returns
 func (i IgnoreLog) Printf(format string, args ...interface{}) {
 	return
 }

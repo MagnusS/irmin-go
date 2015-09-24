@@ -28,158 +28,163 @@ import (
 	"unicode/utf8"
 )
 
+// SubCommandType describes the type of command URL created by MakeCallURL
 type SubCommandType int
 
 const (
-	COMMAND_NORMAL SubCommandType = iota // NORMAL - command is appended to base url
-	COMMAND_TREE                         // TREE - command is executed in the context of a tree
+	// CommandNormal - command is appended to base url
+	CommandNormal SubCommandType = iota
+	// CommandTree - command is executed in the context of a tree
+	CommandTree
 )
 
-type StringArrayReply struct {
-	Result  []IrminString
-	Error   IrminString
-	Version IrminString
+type stringArrayReply struct {
+	Result  []Value
+	Error   Value
+	Version Value
 }
 
-type StringReply struct {
-	Result  IrminString
-	Error   IrminString
-	Version IrminString
+type stringReply struct {
+	Result  Value
+	Error   Value
+	Version Value
 }
 
-type PathArrayReply struct {
-	Result  []IrminPath
-	Error   IrminString
-	Version IrminString
+type pathArrayReply struct {
+	Result  []Path
+	Error   Value
+	Version Value
 }
 
-type BoolReply struct {
+type boolReply struct {
 	Result  bool
-	Error   IrminString
-	Version IrminString
+	Error   Value
+	Version Value
 }
 
+// Task describes the commit message stored in Irmin
 type Task struct {
-	Date     string        `json:"date"`
-	Uid      string        `json:"uid"`
-	Owner    IrminString   `json:"owner"`
-	Messages []IrminString `json:"messages"`
+	Date     string  `json:"date"`
+	UID      string  `json:"uid"`
+	Owner    Value   `json:"owner"`
+	Messages []Value `json:"messages"`
 }
 
-type PostRequest struct {
+type postRequest struct {
 	Task Task            `json:"task"`
 	Data json.RawMessage `json:"params,omitempty"`
 }
 
-type CommandsReply StringArrayReply
-type ListReply PathArrayReply
-type MemReply BoolReply
-type ReadReply StringArrayReply
-type CloneReply StringReply
-type UpdateReply StringReply
-type RemoveReply StringReply
-type RemoveRecReply StringReply
+type commandsReply stringArrayReply
+type listReply pathArrayReply
+type memReply boolReply
+type readReply stringArrayReply
+type cloneReply stringReply
+type updateReply stringReply
+type removeReply stringReply
+type removeRecReply stringReply
 
-type StreamReply struct {
-	Error  IrminString
+type streamReply struct {
+	Error  Value
 	Result json.RawMessage
 }
 
-type RestConn struct {
-	base_uri  *url.URL
+// Conn is an Irmin REST API connection
+type Conn struct {
+	baseURI   *url.URL
 	tree      string
 	taskowner string
 	log       Log
 }
 
 // Create an Irmin REST HTTP connection data structure
-func Create(uri *url.URL, taskowner string) *RestConn {
-	r := new(RestConn)
-	r.base_uri = uri
+func Create(uri *url.URL, taskowner string) *Conn {
+	r := new(Conn)
+	r.baseURI = uri
 	r.taskowner = taskowner
 	r.log = IgnoreLog{}
 	return r
 }
 
-// Set log implementation. Default is to ignore log output.
-func (rest *RestConn) SetLog(log Log) {
+// SetLog sets the log implementation. Log messages are ignored by default.
+func (rest *Conn) SetLog(log Log) {
 	rest.log = log
 }
 
-// Return new connection with a new tree position. Empty defaults to master
-func (rest *RestConn) FromTree(tree string) *RestConn {
+// FromTree returns new Conn with a new tree position. An empty tree value defaults to master branch.
+func (rest *Conn) FromTree(tree string) *Conn {
 	t := *rest
 	t.tree = tree
 	return &t
 }
 
-// Read the current tree position use for Tree sub-commands. Empty defaults to master.
-func (rest *RestConn) Tree() string {
+// Tree reads the current tree position use for Tree sub-commands. Empty defaults to master.
+func (rest *Conn) Tree() string {
 	return rest.tree
 }
 
-// Returns name of task owner
-func (rest *RestConn) TaskOwner() string {
+// TaskOwner returns name of task owner (commit author)
+func (rest *Conn) TaskOwner() string {
 	return rest.taskowner
 }
 
-// Set task owner name
-func (rest *RestConn) SetTaskOwner(owner string) {
+// SetTaskOwner sets the commit author in Irmin
+func (rest *Conn) SetTaskOwner(owner string) {
 	rest.taskowner = owner
 }
 
-// Create a new task that can be be submitted with a command
+// NewTask creates a new task (commit message) that can be be submitted with a command
 func NewTask(taskowner string, message string) Task {
 	var t Task
 	t.Date = fmt.Sprintf("%d", time.Now().Unix())
-	t.Uid = "0"
-	t.Owner = NewIrminString(taskowner)
-	t.Messages = []IrminString{NewIrminString(message)}
+	t.UID = "0"
+	t.Owner = NewValue(taskowner)
+	t.Messages = []Value{NewValue(message)}
 	return t
 }
 
-// Create a new task that can be be submitted with a command
-func (rest *RestConn) NewTask(message string) Task {
+// NewTask creates a new task that can be be submitted with a command (commit message)
+func (rest *Conn) NewTask(message string) Task {
 	return NewTask(rest.taskowner, message)
 }
 
-// Create invocation URL for a command with an optional sub command type
-func (rest *RestConn) MakeCallUrl(ct SubCommandType, command string, path IrminPath) (*url.URL, error) {
+// MakeCallURL creates an invocation URL for an Irmin REST command with an optional sub command type
+func (rest *Conn) MakeCallURL(ct SubCommandType, command string, path Path) (*url.URL, error) {
 	var suffix *url.URL
 	var err error
 
 	p := path.URL()
 
-	var parent_command string
-	var parent_param string
+	var parentCommand string
+	var parentParam string
 
 	switch ct {
-	case COMMAND_NORMAL:
-	case COMMAND_TREE:
+	case CommandNormal:
+	case CommandTree:
 		if rest.Tree() != "" { // Ignore the parameter if Tree is not set
-			parent_command = "tree"
-			parent_param = url.QueryEscape(rest.Tree())
+			parentCommand = "tree"
+			parentParam = url.QueryEscape(rest.Tree())
 		}
 	default:
 		return nil, fmt.Errorf("unknown command type %d", ct)
 	}
 
-	if parent_command == "" {
+	if parentCommand == "" {
 		if suffix, err = url.Parse(fmt.Sprintf("/%s%s", command, p.String())); err != nil {
 			return nil, err
 		}
 	} else {
-		if suffix, err = url.Parse(fmt.Sprintf("/%s/%s/%s/%s%s", parent_command, parent_param, command, p.String())); err != nil {
+		if suffix, err = url.Parse(fmt.Sprintf("/%s/%s/%s/%s%s", parentCommand, parentParam, command, p.String())); err != nil {
 			return nil, err
 		}
 	}
 
-	return rest.base_uri.ResolveReference(suffix), nil
+	return rest.baseURI.ResolveReference(suffix), nil
 }
 
 // Run the specified HTTP command and return the full body of the result.
-func (rest *RestConn) runCommand(ct SubCommandType, command string, path IrminPath, post *PostRequest, v interface{}) (err error) {
-	uri, err := rest.MakeCallUrl(ct, command, path)
+func (rest *Conn) runCommand(ct SubCommandType, command string, path Path, post *postRequest, v interface{}) (err error) {
+	uri, err := rest.MakeCallURL(ct, command, path)
 	if err != nil {
 		return
 	}
@@ -209,15 +214,15 @@ func (rest *RestConn) runCommand(ct SubCommandType, command string, path IrminPa
 }
 
 // Run the specified command and return a channel with responses until the stream is closed. The channel contains raw replies and must be unmarshaled by the caller.
-func (rest *RestConn) runStreamCommand(ct SubCommandType, command string, path IrminPath, post *PostRequest) (_ <-chan *StreamReply, err error) {
-	var stream_token struct {
-		Stream IrminString
+func (rest *Conn) runStreamCommand(ct SubCommandType, command string, path Path, post *postRequest) (_ <-chan *streamReply, err error) {
+	var streamToken struct {
+		Stream Value
 	}
 	var version struct {
-		Version IrminString
+		Version Value
 	}
 
-	uri, err := rest.MakeCallUrl(ct, command, path)
+	uri, err := rest.MakeCallURL(ct, command, path)
 	if err != nil {
 		return
 	}
@@ -250,8 +255,8 @@ func (rest *RestConn) runStreamCommand(ct SubCommandType, command string, path I
 		return
 	}
 
-	err = dec.Decode(&stream_token)
-	if err != nil || !bytes.Equal(stream_token.Stream, []byte("start")) { // look for stream start
+	err = dec.Decode(&streamToken)
+	if err != nil || !bytes.Equal(streamToken.Stream, []byte("start")) { // look for stream start
 		return
 	}
 
@@ -260,7 +265,7 @@ func (rest *RestConn) runStreamCommand(ct SubCommandType, command string, path I
 		return
 	}
 
-	ch := make(chan *StreamReply, 100)
+	ch := make(chan *streamReply, 100)
 	wg.Add(1)
 	go func() {
 		defer func() {
@@ -269,12 +274,12 @@ func (rest *RestConn) runStreamCommand(ct SubCommandType, command string, path I
 		}()
 
 		for dec.More() {
-			s := new(StreamReply)
+			s := new(streamReply)
 			if err = dec.Decode(s); err != nil {
 				return
 			}
 			if len(s.Result) == 0 { // If result is empty, look for stream end
-				if err = dec.Decode(&stream_token); err != nil || bytes.Equal(stream_token.Stream, []byte("end")) { // look for stream end
+				if err = dec.Decode(&streamToken); err != nil || bytes.Equal(streamToken.Stream, []byte("end")) { // look for stream end
 					return
 				}
 			}
@@ -284,11 +289,11 @@ func (rest *RestConn) runStreamCommand(ct SubCommandType, command string, path I
 	return ch, nil
 }
 
-// Returns list of available commands
-func (rest *RestConn) AvailableCommands() ([]string, error) {
-	var data CommandsReply
+// AvailableCommands queries Irmin for a list of available commands
+func (rest *Conn) AvailableCommands() ([]string, error) {
+	var data commandsReply
 	var err error
-	if err = rest.runCommand(COMMAND_TREE, "", IrminPath{}, nil, &data); err != nil {
+	if err = rest.runCommand(CommandTree, "", Path{}, nil, &data); err != nil {
 		return []string{}, err
 	}
 	if data.Error.String() != "" {
@@ -302,11 +307,11 @@ func (rest *RestConn) AvailableCommands() ([]string, error) {
 	return r, nil
 }
 
-// Returns Irmin version
-func (rest *RestConn) Version() (string, error) {
-	var data CommandsReply
+// Version returns the Irmin version
+func (rest *Conn) Version() (string, error) {
+	var data commandsReply
 	var err error
-	if err = rest.runCommand(COMMAND_TREE, "", IrminPath{}, nil, &data); err != nil {
+	if err = rest.runCommand(CommandTree, "", Path{}, nil, &data); err != nil {
 		return "", err
 	}
 	if data.Error.String() != "" {
@@ -316,25 +321,25 @@ func (rest *RestConn) Version() (string, error) {
 	return data.Version.String(), nil
 }
 
-// Returns list of keys in a path
-func (rest *RestConn) List(path IrminPath) ([]IrminPath, error) {
-	var data ListReply
+// List returns a list of keys in a path
+func (rest *Conn) List(path Path) ([]Path, error) {
+	var data listReply
 	var err error
-	if err = rest.runCommand(COMMAND_TREE, "list", path, nil, &data); err != nil {
-		return []IrminPath{}, err
+	if err = rest.runCommand(CommandTree, "list", path, nil, &data); err != nil {
+		return []Path{}, err
 	}
 	if data.Error.String() != "" {
-		return []IrminPath{}, fmt.Errorf(data.Error.String())
+		return []Path{}, fmt.Errorf(data.Error.String())
 	}
 
 	return data.Result, nil
 }
 
-// Returns true if a path exists
-func (rest *RestConn) Mem(path IrminPath) (bool, error) {
-	var data MemReply
+// Mem returns true if a path exists
+func (rest *Conn) Mem(path Path) (bool, error) {
+	var data memReply
 	var err error
-	err = rest.runCommand(COMMAND_TREE, "mem", path, nil, &data)
+	err = rest.runCommand(CommandTree, "mem", path, nil, &data)
 	if err != nil {
 		return false, err
 	}
@@ -345,10 +350,10 @@ func (rest *RestConn) Mem(path IrminPath) (bool, error) {
 }
 
 // Read key value as byte array
-func (rest *RestConn) Read(path IrminPath) ([]byte, error) {
-	var data ReadReply
+func (rest *Conn) Read(path Path) ([]byte, error) {
+	var data readReply
 	var err error
-	if err = rest.runCommand(COMMAND_TREE, "read", path, nil, &data); err != nil {
+	if err = rest.runCommand(CommandTree, "read", path, nil, &data); err != nil {
 		return []byte{}, err
 	}
 	if data.Error.String() != "" {
@@ -359,31 +364,29 @@ func (rest *RestConn) Read(path IrminPath) ([]byte, error) {
 	}
 	if len(data.Result) == 1 {
 		return data.Result[0], nil
-	} else {
-		return []byte{}, fmt.Errorf("invalid key %s", path.String())
 	}
+	return []byte{}, fmt.Errorf("invalid key %s", path.String())
 }
 
-// Read key value as string. The key value must contain a valid UTF-8 encoded string.
-func (rest *RestConn) ReadString(path IrminPath) (string, error) {
+// ReadString reads a value as string. The value must contain a valid UTF-8 encoded string.
+func (rest *Conn) ReadString(path Path) (string, error) {
 	res, err := rest.Read(path)
 	if err != nil {
 		return "", err
 	}
 	if utf8.Valid(res) {
 		return string(res), nil
-	} else {
-		return "", fmt.Errorf("path %s does not contain a valid utf8 string", path.String())
 	}
+	return "", fmt.Errorf("path %s does not contain a valid utf8 string", path.String())
 }
 
 // Update a key. Returns hash as string on success.
-func (rest *RestConn) Update(t Task, path IrminPath, contents []byte) (string, error) {
-	var data UpdateReply
+func (rest *Conn) Update(t Task, path Path, contents []byte) (string, error) {
+	var data updateReply
 	var err error
 
-	var body PostRequest
-	i := IrminString(contents)
+	var body postRequest
+	i := Value(contents)
 
 	body.Data, err = i.MarshalJSON()
 	if err != nil {
@@ -392,7 +395,7 @@ func (rest *RestConn) Update(t Task, path IrminPath, contents []byte) (string, e
 
 	body.Task = t
 
-	if err = rest.runCommand(COMMAND_TREE, "update", path, &body, &data); err != nil {
+	if err = rest.runCommand(CommandTree, "update", path, &body, &data); err != nil {
 		return data.Result.String(), err
 	}
 	if data.Error.String() != "" {
@@ -406,11 +409,11 @@ func (rest *RestConn) Update(t Task, path IrminPath, contents []byte) (string, e
 }
 
 // Remove key
-func (rest *RestConn) Remove(t Task, path IrminPath) error {
-	var data RemoveReply
+func (rest *Conn) Remove(t Task, path Path) error {
+	var data removeReply
 	var err error
-	body := PostRequest{t, nil}
-	if err = rest.runCommand(COMMAND_TREE, "remove", path, &body, &data); err != nil {
+	body := postRequest{t, nil}
+	if err = rest.runCommand(CommandTree, "remove", path, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -423,12 +426,12 @@ func (rest *RestConn) Remove(t Task, path IrminPath) error {
 	return nil
 }
 
-// Remove key recursively
-func (rest *RestConn) RemoveRec(t Task, path IrminPath) error {
-	var data RemoveReply
+// RemoveRec removes a key and its subtree recursively
+func (rest *Conn) RemoveRec(t Task, path Path) error {
+	var data removeReply
 	var err error
-	body := PostRequest{t, nil}
-	if err = rest.runCommand(COMMAND_TREE, "remove-rec", path, &body, &data); err != nil {
+	body := postRequest{t, nil}
+	if err = rest.runCommand(CommandTree, "remove-rec", path, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -441,20 +444,20 @@ func (rest *RestConn) RemoveRec(t Task, path IrminPath) error {
 	return nil
 }
 
-// Iterate through all keys in database. Returns results in a channel as they are received.
-func (rest *RestConn) Iter() (<-chan *IrminPath, error) {
-	var ch <-chan *StreamReply
+// Iter iterates through all keys in database. Returns results in a channel as they are received.
+func (rest *Conn) Iter() (<-chan *Path, error) {
+	var ch <-chan *streamReply
 	var err error
-	if ch, err = rest.runStreamCommand(COMMAND_TREE, "iter", IrminPath{}, nil); err != nil || ch == nil {
+	if ch, err = rest.runStreamCommand(CommandTree, "iter", Path{}, nil); err != nil || ch == nil {
 		return nil, err
 	}
 
-	out := make(chan *IrminPath, 1)
+	out := make(chan *Path, 1)
 
 	go func() {
 		defer close(out)
 		for m := range ch {
-			p := new(IrminPath)
+			p := new(Path)
 			if err := json.Unmarshal(m.Result, &p); err != nil {
 				panic(err) // TODO This should be returned to caller
 			}
@@ -466,8 +469,8 @@ func (rest *RestConn) Iter() (<-chan *IrminPath, error) {
 }
 
 // Clone the current tree and create a named tag. Force overwrites a previous clone with the same name.
-func (rest *RestConn) Clone(t Task, name string, force bool) error {
-	var data CloneReply
+func (rest *Conn) Clone(t Task, name string, force bool) error {
+	var data cloneReply
 	var err error
 	path, err := ParseEncodedPath(url.QueryEscape(name)) // encode and wrap in IrminPath
 	if err != nil {
@@ -477,8 +480,8 @@ func (rest *RestConn) Clone(t Task, name string, force bool) error {
 	if force {
 		command = "clone-force"
 	}
-	body := PostRequest{t, nil}
-	if err = rest.runCommand(COMMAND_TREE, command, path, &body, &data); err != nil {
+	body := postRequest{t, nil}
+	if err = rest.runCommand(CommandTree, command, path, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -494,14 +497,14 @@ func (rest *RestConn) Clone(t Task, name string, force bool) error {
 	return nil
 }
 
-// Compare and set a key if the current value is equal to the given value.
-func (rest *RestConn) CompareAndSet(t Task, path IrminPath, oldcontents *[]byte, contents *[]byte) (string, error) {
-	var data UpdateReply
+// CompareAndSet sets a key if the current value is equal to the given value.
+func (rest *Conn) CompareAndSet(t Task, path Path, oldcontents *[]byte, contents *[]byte) (string, error) {
+	var data updateReply
 	var err error
 
-	var body PostRequest
+	var body postRequest
 
-	post := [][]*IrminString{[]*IrminString{(*IrminString)(oldcontents)}, []*IrminString{(*IrminString)(contents)}}
+	post := [][]*Value{[]*Value{(*Value)(oldcontents)}, []*Value{(*Value)(contents)}}
 
 	body.Data, err = json.Marshal(&post)
 	if err != nil {
@@ -510,7 +513,7 @@ func (rest *RestConn) CompareAndSet(t Task, path IrminPath, oldcontents *[]byte,
 
 	body.Task = t
 
-	if err = rest.runCommand(COMMAND_TREE, "compare-and-set", path, &body, &data); err != nil {
+	if err = rest.runCommand(CommandTree, "compare-and-set", path, &body, &data); err != nil {
 		return data.Result.String(), err
 	}
 	if data.Error.String() != "" {

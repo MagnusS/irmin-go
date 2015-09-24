@@ -13,6 +13,7 @@
  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
+
 package main
 
 import (
@@ -58,7 +59,7 @@ func main() {
 		}
 	}
 	{ // iter
-		var ch <-chan *irmin.IrminPath
+		var ch <-chan *irmin.Path
 		if ch, err = r.Iter(); err != nil {
 			panic(err)
 		}
@@ -68,7 +69,7 @@ func main() {
 		}
 	}
 	{ // iter + read
-		var ch <-chan *irmin.IrminPath
+		var ch <-chan *irmin.Path
 		if ch, err = r.Iter(); err != nil {
 			panic(err)
 		}

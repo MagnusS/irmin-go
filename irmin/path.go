@@ -22,22 +22,23 @@ import (
 	"strings"
 )
 
-type IrminPath []IrminString
+// Path is a path in an Irmin tree
+type Path []Value
 
-// Path delimiter. Always '/'
-func (path *IrminPath) Delim() rune {
+// Delim returns the default path delimiter. Always '/' for now.
+func (path *Path) Delim() rune {
 	return '/'
 }
 
-// Parse a path string by splitting into segments separated by '/'. Each segment may be PCT encoded to escape '/' in the name. (see url.QueryEscape)
-func ParseEncodedPath(p string) (IrminPath, error) {
+// ParseEncodedPath parses a path string separated by '/'. Each segment may be PCT encoded to escape '/' in the name. (see also url.QueryEscape)
+func ParseEncodedPath(p string) (Path, error) {
 	// TODO use delim() here
 	segs := strings.Split(strings.Trim(p, " /"), "/")
-	is := make([]IrminString, len(segs))
+	is := make([]Value, len(segs))
 	for i := range segs {
 		s, err := url.QueryUnescape(segs[i])
 		if err != nil {
-			return IrminPath{}, err
+			return Path{}, err
 		}
 		is[i] = []byte(s)
 	}
@@ -45,19 +46,19 @@ func ParseEncodedPath(p string) (IrminPath, error) {
 	return is, nil
 }
 
-// Parse a path string by splitting into segments separated by '/'. See also ParseEncoded.
-func ParsePath(p string) IrminPath {
+// ParsePath parses a path string separated by '/'.
+func ParsePath(p string) Path {
 	// TODO use delim() here
 	segs := strings.Split(strings.Trim(p, " /"), "/")
-	is := make([]IrminString, len(segs))
+	is := make([]Value, len(segs))
 	for i := range segs {
 		is[i] = []byte(segs[i])
 	}
 	return is
 }
 
-// String representation of path
-func (path *IrminPath) String() string {
+// String representation of a Path
+func (path *Path) String() string {
 	if len(*path) > 0 {
 		var buf bytes.Buffer
 		for _, v := range *path {
@@ -65,14 +66,13 @@ func (path *IrminPath) String() string {
 			buf.Write(v)
 		}
 		return buf.String()
-	} else {
-		return ""
 	}
+	return ""
 
 }
 
-// Relative URL representation of path
-func (path *IrminPath) URL() *url.URL {
+// URL returns relative URL representation of a Path
+func (path *Path) URL() *url.URL {
 	if len(*path) > 0 {
 		var buf bytes.Buffer
 		for _, v := range *path {

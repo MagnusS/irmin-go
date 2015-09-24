@@ -21,32 +21,33 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
+// View describes a transaction/view in Irmin
 type View struct {
-	srv  *RestConn
+	srv  *Conn
 	head string
 	node string
-	path IrminPath
+	path Path
 }
 
-type CreateViewReply StringReply
-type ViewReadReply StringReply
-type ViewMergeReply StringReply
-type ViewUpdateReply UpdateReply
+type createViewReply stringReply
+type viewReadReply stringReply
+type viewMergeReply stringReply
+type viewUpdateReply updateReply
 
-func (rest *RestConn) CreateView(t Task, path IrminPath) (*View, error) {
+// CreateView creates a new view (transaction) in Irmin relative to the given path
+func (rest *Conn) CreateView(t Task, path Path) (*View, error) {
 
-	var data CreateViewReply
+	var data createViewReply
 
-	var body PostRequest
+	var body postRequest
 	body.Data = nil
 	body.Task = t
 
 	// TODO Rename command to /create when https://github.com/mirage/irmin/issues/294 is fixed
-	err := rest.runCommand(COMMAND_TREE, "view/create/create", path, &body, &data)
+	err := rest.runCommand(CommandTree, "view/create/create", path, &body, &data)
 	if err != nil {
 		return nil, err
 	}
@@ -70,22 +71,22 @@ func (rest *RestConn) CreateView(t Task, path IrminPath) (*View, error) {
 	return v, nil
 }
 
-// Return original path the view was created from
-func (view *View) Path() IrminPath {
+// Path returns the original path the view was created from
+func (view *View) Path() Path {
 	return view.path
 }
 
-// Return tree position the view was created from. An empty tree value uses master by default.
+// Tree returns the position the view was created from. An empty tree value will default to the master branch.
 func (view *View) Tree() string {
 	return view.srv.Tree()
 }
 
-// Read path from view
-func (view *View) Read(path IrminPath) ([]byte, error) {
-	var data ViewReadReply
+// Read a value from a view
+func (view *View) Read(path Path) ([]byte, error) {
+	var data viewReadReply
 	var err error
 	cmd := fmt.Sprintf("view/%s/read", url.QueryEscape(view.node))
-	if err = view.srv.runCommand(COMMAND_NORMAL, cmd, path, nil, &data); err != nil {
+	if err = view.srv.runCommand(CommandNormal, cmd, path, nil, &data); err != nil {
 		return []byte{}, err
 	}
 	if data.Error.String() != "" {
@@ -94,8 +95,8 @@ func (view *View) Read(path IrminPath) ([]byte, error) {
 	return data.Result, nil
 }
 
-// Read string from path. If string is not valid utf8 an error is returned.
-func (view *View) ReadString(path IrminPath) (string, error) {
+// ReadString reads a value and converts it into a string. If the value is not valid utf8 an error is returned.
+func (view *View) ReadString(path Path) (string, error) {
 	// TODO This code duplicates functionality from rest.ReadString
 	res, err := view.Read(path)
 	if err != nil {
@@ -103,18 +104,17 @@ func (view *View) ReadString(path IrminPath) (string, error) {
 	}
 	if utf8.Valid(res) {
 		return string(res), nil
-	} else {
-		return "", fmt.Errorf("path %s does not contain a valid utf8 string", path.String())
 	}
+	return "", fmt.Errorf("path %s does not contain a valid utf8 string", path.String())
 }
 
 // Update a key. Returns hash as string on success.
-func (view *View) Update(t Task, path IrminPath, contents []byte) (string, error) {
-	var data ViewUpdateReply
+func (view *View) Update(t Task, path Path, contents []byte) (string, error) {
+	var data viewUpdateReply
 	var err error
 
-	var body PostRequest
-	i := IrminString(contents)
+	var body postRequest
+	i := Value(contents)
 
 	body.Data, err = i.MarshalJSON()
 	if err != nil {
@@ -124,7 +124,7 @@ func (view *View) Update(t Task, path IrminPath, contents []byte) (string, error
 	body.Task = t
 
 	cmd := fmt.Sprintf("view/%s/update", url.QueryEscape(view.node))
-	if err = view.srv.runCommand(COMMAND_NORMAL, cmd, path, &body, &data); err != nil {
+	if err = view.srv.runCommand(CommandNormal, cmd, path, &body, &data); err != nil {
 		return data.Result.String(), err
 	}
 	if data.Error.String() != "" {
@@ -139,13 +139,13 @@ func (view *View) Update(t Task, path IrminPath, contents []byte) (string, error
 	return view.node, nil
 }
 
-// Attempt to merge view into the specified branch and path. Empty tree defaults to master.
-func (view *View) MergePath(t Task, tree string, path IrminPath) error {
-	var data ViewMergeReply
+// MergePath will attempt to merge view into the specified branch and path. An empty tree value defaults to master.
+func (view *View) MergePath(t Task, tree string, path Path) error {
+	var data viewMergeReply
 	var err error
 
-	var body PostRequest
-	i := IrminString([]byte(view.head)) // body contains head
+	var body postRequest
+	i := Value([]byte(view.head)) // body contains head
 
 	body.Data, err = i.MarshalJSON()
 	if err != nil {
@@ -155,7 +155,7 @@ func (view *View) MergePath(t Task, tree string, path IrminPath) error {
 	body.Task = t
 
 	cmd := fmt.Sprintf("tree/%s/view/%s/merge-path", url.QueryEscape(tree), url.QueryEscape(view.node))
-	if err = view.srv.runCommand(COMMAND_NORMAL, cmd, path, &body, &data); err != nil {
+	if err = view.srv.runCommand(CommandNormal, cmd, path, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -166,15 +166,15 @@ func (view *View) MergePath(t Task, tree string, path IrminPath) error {
 	return nil
 }
 
-// Write the view into the specified tree and path. Overwrites existing values.
-func (view *View) UpdatePath(t Task, tree string, path IrminPath) error {
-	var data ViewUpdateReply
+// UpdatePath writes the view into the specified tree and path. Overwrites existing values.
+func (view *View) UpdatePath(t Task, tree string, path Path) error {
+	var data viewUpdateReply
 	var err error
 
-	body := PostRequest{t, nil}
+	body := postRequest{t, nil}
 
 	cmd := fmt.Sprintf("tree/%s/view/%s/update-path", url.QueryEscape(tree), url.QueryEscape(view.node))
-	if err = view.srv.runCommand(COMMAND_NORMAL, cmd, path, &body, &data); err != nil {
+	if err = view.srv.runCommand(CommandNormal, cmd, path, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -187,21 +187,21 @@ func (view *View) UpdatePath(t Task, tree string, path IrminPath) error {
 	return nil
 }
 
-// Iterate through all keys in a view. Returns results in a channel as they are received.
-func (view *View) Iter() (<-chan *IrminPath, error) {
-	var ch <-chan *StreamReply
+// Iter iterates through all keys in a view. Returns results in a channel as they are received.
+func (view *View) Iter() (<-chan *Path, error) {
+	var ch <-chan *streamReply
 	var err error
 	cmd := fmt.Sprintf("view/%s/iter", url.QueryEscape(view.node))
-	if ch, err = view.srv.runStreamCommand(COMMAND_NORMAL, cmd, IrminPath{}, nil); err != nil || ch == nil {
+	if ch, err = view.srv.runStreamCommand(CommandNormal, cmd, Path{}, nil); err != nil || ch == nil {
 		return nil, err
 	}
 
-	out := make(chan *IrminPath, 1)
+	out := make(chan *Path, 1)
 
 	go func() {
 		defer close(out)
 		for m := range ch {
-			p := new(IrminPath)
+			p := new(Path)
 			if err := json.Unmarshal(m.Result, &p); err != nil {
 				panic(err) // TODO This should be returned to caller
 			}
@@ -212,7 +212,7 @@ func (view *View) Iter() (<-chan *IrminPath, error) {
 	return out, err
 }
 
-// Create a new task that can be be submitted with a command
+// NewTask creates a new task that can be be submitted with a command. This is used as the commit message by Irmin.
 func (view *View) NewTask(message string) Task {
 	return NewTask(view.srv.taskowner, message)
 }

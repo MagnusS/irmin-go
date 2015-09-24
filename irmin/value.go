@@ -23,25 +23,29 @@ import (
 	"unicode/utf8"
 )
 
-type IrminString []byte
+// Value contains a value read from Irmin
+type Value []byte
 
-func NewIrminString(s string) IrminString {
+// NewValue creates a new Value from a string
+func NewValue(s string) Value {
 	return []byte(s)
 }
 
-func (i *IrminString) String() string {
+// String returns the string representation of a value
+func (i *Value) String() string {
 	return string(*i)
 }
 
-func (i *IrminString) MarshalJSON() ([]byte, error) {
+// MarshalJSON returns a JSON encoded value. If the value is valid UTF-8 it will be encoded as a string, otherwise it will be encoded as a list of hex values.
+func (i *Value) MarshalJSON() ([]byte, error) {
 	if utf8.Valid(*i) {
 		return []byte(fmt.Sprintf("\"%s\"", *i)), nil /* output as string if valid utf8 */
-	} else {
-		return []byte(fmt.Sprintf("{ \"hex\" : \"%x\" }", *i)), nil /* if not valid, output in hex format */
 	}
+	return []byte(fmt.Sprintf("{ \"hex\" : \"%x\" }", *i)), nil /* if not valid, output in hex format */
 }
 
-func (i *IrminString) UnmarshalJSON(b []byte) error {
+// UnmarshalJSON unmarshals a JSON encoded value
+func (i *Value) UnmarshalJSON(b []byte) error {
 	type IrminHex struct { /* only used internally */
 		Hex string
 	}
