@@ -17,9 +17,11 @@
 package main
 
 import (
-	"../irmin"
+	"encoding/hex"
 	"fmt"
 	"net/url"
+
+	"../irmin"
 )
 
 // irmin init -d -v --root /tmp/irmin/test -a http://:8080
@@ -37,6 +39,13 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("version: %s\n", v)
+	}
+	{ // get head
+		v, err := r.Head()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("head: %s\n", hex.EncodeToString(v))
 	}
 	{ // list commands
 		fmt.Printf("supported commands:\n")

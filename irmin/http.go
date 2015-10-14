@@ -18,6 +18,7 @@ package irmin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -83,6 +84,7 @@ type cloneReply stringReply
 type updateReply stringReply
 type removeReply stringReply
 type removeRecReply stringReply
+type headReply stringArrayReply
 
 type streamReply struct {
 	Error  Value
@@ -347,6 +349,29 @@ func (rest *Conn) Mem(path Path) (bool, error) {
 		return false, fmt.Errorf(data.Error.String())
 	}
 	return data.Result, nil
+}
+
+// Head returns the commit hash of HEAD
+func (rest *Conn) Head() ([]byte, error) {
+	var data headReply
+	var err error
+	if err = rest.runCommand(CommandTree, "head", nil, nil, &data); err != nil {
+		return []byte{}, err
+	}
+	if data.Error.String() != "" {
+		return []byte{}, fmt.Errorf(data.Error.String())
+	}
+	if len(data.Result) > 1 {
+		return []byte{}, fmt.Errorf("head returned more than one result")
+	}
+	if len(data.Result) == 1 {
+		hash, err := hex.DecodeString(data.Result[0].String())
+		if err != nil {
+			return []byte{}, fmt.Errorf("Unable to parse hash from Irmin: %s", data.Result[0])
+		}
+		return hash, nil
+	}
+	return []byte{}, fmt.Errorf("Invalid data from Irmin.")
 }
 
 // Read key value as byte array
