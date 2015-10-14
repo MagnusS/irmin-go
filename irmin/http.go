@@ -176,7 +176,7 @@ func (rest *Conn) MakeCallURL(ct SubCommandType, command string, path Path) (*ur
 			return nil, err
 		}
 	} else {
-		if suffix, err = url.Parse(fmt.Sprintf("/%s/%s/%s/%s%s", parentCommand, parentParam, command, p.String())); err != nil {
+		if suffix, err = url.Parse(fmt.Sprintf("/%s/%s/%s%s", parentCommand, parentParam, command, p.String())); err != nil {
 			return nil, err
 		}
 	}
@@ -359,7 +359,7 @@ func (rest *Conn) Head() ([]byte, error) {
 		return []byte{}, err
 	}
 	if data.Error.String() != "" {
-		return []byte{}, fmt.Errorf(data.Error.String())
+		return []byte{}, fmt.Errorf("irmin error: %s", data.Error.String())
 	}
 	if len(data.Result) > 1 {
 		return []byte{}, fmt.Errorf("head returned more than one result")
