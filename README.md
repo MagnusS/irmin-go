@@ -4,6 +4,7 @@ This code is work in progress and not all commands are implemented yet. The Irmi
 
 #### Implemented commands
 
+ - head
  - read
  - mem
  - list
