@@ -77,6 +77,21 @@ func main() {
 			fmt.Printf("iter: %s\n", (*p).String())
 		}
 	}
+	{ // iter on head
+		head, err := r.Head()
+		if err != nil {
+			panic(err)
+		}
+		t := r.FromTree(hex.EncodeToString(head))
+		var ch <-chan *irmin.Path
+		if ch, err = t.Iter(); err != nil {
+			panic(err)
+		}
+
+		for p := range ch {
+			fmt.Printf("iter from HEAD: %s\n", (*p).String())
+		}
+	}
 	{ // iter + read
 		var ch <-chan *irmin.Path
 		if ch, err = r.Iter(); err != nil {
