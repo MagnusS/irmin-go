@@ -17,9 +17,12 @@
 package main
 
 import (
-	"../../irmin"
 	"fmt"
+	"math/rand"
 	"net/url"
+	"time"
+
+	"../../irmin"
 )
 
 func listDb(r *irmin.Conn) {
@@ -38,6 +41,7 @@ func listDb(r *irmin.Conn) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	uri, _ := url.Parse("http://127.0.0.1:8080")
 	r := irmin.Create(uri, "view-example")
 
@@ -54,7 +58,7 @@ func main() {
 	}
 
 	// Create a key in /view-test
-	s, err := r.Update(r.NewTask("update key /view-test/exists"), irmin.ParsePath("/view-test/exists"), irmin.NewValue("hello world"))
+	s, err := r.Update(r.NewTask("update key /view-test/exists"), irmin.ParsePath("/view-test/exists"), irmin.NewValue(fmt.Sprintf("hello world %d", rand.Int31())))
 	if err != nil {
 		panic(err)
 	}

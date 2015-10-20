@@ -47,7 +47,11 @@ func (rest *Conn) CreateView(t Task, path Path) (*View, error) {
 	body.Task = t
 
 	// TODO Rename command to /create when https://github.com/mirage/irmin/issues/294 is fixed
-	err := rest.runCommand(CommandTree, "view/create/create", path, &body, &data)
+	uri, err := rest.MakeCallURL("view/create/create", path, true)
+	if err != nil {
+		return nil, err
+	}
+	err = rest.Call(uri, &body, &data)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +90,11 @@ func (view *View) Read(path Path) ([]byte, error) {
 	var data viewReadReply
 	var err error
 	cmd := fmt.Sprintf("view/%s/read", url.QueryEscape(view.node))
-	if err = view.srv.runCommand(CommandNormal, cmd, path, nil, &data); err != nil {
+	uri, err := view.srv.MakeCallURL(cmd, path, false)
+	if err != nil {
+		return nil, err
+	}
+	if err = view.srv.Call(uri, nil, &data); err != nil {
 		return []byte{}, err
 	}
 	if data.Error.String() != "" {
@@ -124,7 +132,11 @@ func (view *View) Update(t Task, path Path, contents []byte) (string, error) {
 	body.Task = t
 
 	cmd := fmt.Sprintf("view/%s/update", url.QueryEscape(view.node))
-	if err = view.srv.runCommand(CommandNormal, cmd, path, &body, &data); err != nil {
+	uri, err := view.srv.MakeCallURL(cmd, path, false)
+	if err != nil {
+		return "", err
+	}
+	if err = view.srv.Call(uri, &body, &data); err != nil {
 		return data.Result.String(), err
 	}
 	if data.Error.String() != "" {
@@ -155,7 +167,11 @@ func (view *View) MergePath(t Task, tree string, path Path) error {
 	body.Task = t
 
 	cmd := fmt.Sprintf("tree/%s/view/%s/merge-path", url.QueryEscape(tree), url.QueryEscape(view.node))
-	if err = view.srv.runCommand(CommandNormal, cmd, path, &body, &data); err != nil {
+	uri, err := view.srv.MakeCallURL(cmd, path, false)
+	if err != nil {
+		return err
+	}
+	if err = view.srv.Call(uri, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -174,7 +190,11 @@ func (view *View) UpdatePath(t Task, tree string, path Path) error {
 	body := postRequest{t, nil}
 
 	cmd := fmt.Sprintf("tree/%s/view/%s/update-path", url.QueryEscape(tree), url.QueryEscape(view.node))
-	if err = view.srv.runCommand(CommandNormal, cmd, path, &body, &data); err != nil {
+	uri, err := view.srv.MakeCallURL(cmd, path, false)
+	if err != nil {
+		return err
+	}
+	if err = view.srv.Call(uri, &body, &data); err != nil {
 		return err
 	}
 	if data.Error.String() != "" {
@@ -192,7 +212,11 @@ func (view *View) Iter() (<-chan *Path, error) {
 	var ch <-chan *streamReply
 	var err error
 	cmd := fmt.Sprintf("view/%s/iter", url.QueryEscape(view.node))
-	if ch, err = view.srv.runStreamCommand(CommandNormal, cmd, Path{}, nil); err != nil || ch == nil {
+	uri, err := view.srv.MakeCallURL(cmd, Path{}, false)
+	if err != nil {
+		return nil, err
+	}
+	if ch, err = view.srv.CallStream(uri, nil); err != nil || ch == nil {
 		return nil, err
 	}
 
