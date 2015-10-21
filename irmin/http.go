@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -140,15 +141,16 @@ func (rest *Conn) MakeCallURL(command string, path Path, supportsTree bool) (*ur
 	var suffix *url.URL
 	var err error
 
-	p := path.URL()
+	u := path.URL()
+	p := strings.Replace(u.String(), "+", "%20", -1) // Replace + with %20, see https://github.com/golang/go/issues/4013
 
 	if supportsTree && rest.Tree() != "" { // Ignore the parameter if Tree is not set
 		t := url.QueryEscape(rest.Tree())
-		if suffix, err = url.Parse(fmt.Sprintf("/tree/%s/%s%s", t, command, p.String())); err != nil {
+		if suffix, err = url.Parse(fmt.Sprintf("/tree/%s/%s%s", t, command, p)); err != nil {
 			return nil, err
 		}
 	} else {
-		if suffix, err = url.Parse(fmt.Sprintf("/%s%s", command, p.String())); err != nil {
+		if suffix, err = url.Parse(fmt.Sprintf("/%s%s", command, p)); err != nil {
 			return nil, err
 		}
 	}
