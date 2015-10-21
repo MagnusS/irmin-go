@@ -60,8 +60,8 @@ type Task struct {
 
 // CommitValuePair represents the value of a key at a specific commit
 type CommitValuePair struct {
-	commit []byte
-	value  []byte
+	Commit []byte
+	Value  []byte
 }
 
 type postRequest struct {
@@ -416,12 +416,12 @@ func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO no
 			}
 			for _, q := range *p {
 				c := new(CommitValuePair)
-				c.commit, err = hex.DecodeString(q[0].String())
+				c.Commit, err = hex.DecodeString(q[0].String())
 				if err != nil {
 					rest.log.Printf("Unable to decode commit hash from watch (ignored): %s", q[0].String())
 					continue
 				}
-				c.value = q[1]
+				c.Value = q[1]
 				out <- c
 			}
 		}
