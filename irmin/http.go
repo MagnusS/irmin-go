@@ -57,6 +57,12 @@ type Task struct {
 	Messages []Value `json:"messages"`
 }
 
+// CommitValuePair represents the value of a key at a specific commit
+type CommitValuePair struct {
+	commit []byte
+	value  []byte
+}
+
 type postRequest struct {
 	Task Task            `json:"task"`
 	Data json.RawMessage `json:"params,omitempty"`
@@ -384,7 +390,9 @@ func (rest *Conn) Iter() (<-chan *Path, error) {
 }
 
 // Watch a specific key for create/delete/update. Returns commit/value pairs. This function is not recursive. See TagWatch for watching all commits.
-func (rest *Conn) Watch(path Path) (<-chan *Path, error) { // TODO not path
+func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO not path
+	type watchKeyReply [][]Value // An array of arrays of commit/value pairs
+
 	uri, err := rest.MakeCallURL("watch", path, true)
 	if err != nil {
 		return nil, err
@@ -395,16 +403,25 @@ func (rest *Conn) Watch(path Path) (<-chan *Path, error) { // TODO not path
 		return nil, err
 	}
 
-	out := make(chan *Path, 1)
+	out := make(chan *CommitValuePair, 1)
 
 	go func() {
 		defer close(out)
 		for m := range ch {
-			p := new(Path)
+			p := new([][]Value)
 			if err := json.Unmarshal(m.Result, &p); err != nil {
 				panic(err) // TODO This should be returned to caller
 			}
-			out <- p
+			for _, q := range *p {
+				c := new(CommitValuePair)
+				c.commit, err = hex.DecodeString(q[0].String())
+				if err != nil {
+					rest.log.Printf("Unable to decode commit hash from watch (ignored): %s", q[0].String())
+					continue
+				}
+				c.value = q[1]
+				out <- c
+			}
 		}
 	}()
 
