@@ -40,13 +40,6 @@ func main() {
 		}
 		fmt.Printf("version: %s\n", v)
 	}
-	{ // get head
-		v, err := r.Head()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("head: %s\n", hex.EncodeToString(v))
-	}
 	{ // list commands
 		fmt.Printf("supported commands:\n")
 		s, err := r.AvailableCommands()
@@ -121,6 +114,13 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("%s=%s\n", key, d)
+	}
+	{ // get head
+		v, err := r.Head()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("head: %s\n", hex.EncodeToString(v))
 	}
 	/* compare-and-set is not yet implemented in irmin, see https://github.com/mirage/irmin/issues/288
 	{ // compare-and-set
