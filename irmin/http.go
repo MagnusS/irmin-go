@@ -64,6 +64,19 @@ type CommitValuePair struct {
 	Value  []byte
 }
 
+const (
+	KeyDeleted = "-"
+	KeyCreated = "+"
+	KeyUpdated = "*"
+)
+
+// WatchPathResult contains a commit and an updated, deleted or created key as returned by WatchPath
+type WatchPathResult struct {
+	Commit []byte
+	Change string // Updated, Created, Deleted
+	Key    Path
+}
+
 type postRequest struct {
 	Task Task            `json:"task"`
 	Data json.RawMessage `json:"params,omitempty"`
@@ -391,7 +404,7 @@ func (rest *Conn) Iter() (<-chan *Path, error) {
 	return out, err
 }
 
-// Watch a specific key for create/delete/update. Returns commit/value pairs. This function is not recursive. See TagWatch for watching all commits.
+// Watch a specific key for create/delete/update. Returns commit/value pairs. This function is not recursive (see WatchPath)
 func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO not path
 	type watchKeyReply [][]Value // An array of arrays of commit/value pairs
 
@@ -422,6 +435,86 @@ func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO no
 					continue
 				}
 				c.Value = q[1]
+				out <- c
+			}
+		}
+	}()
+
+	return out, err
+}
+
+// WatchPath watches a path recursively. Returns keys that are updated, deleted or created.
+func (rest *Conn) WatchPath(path Path) (<-chan *WatchPathResult, error) { // TODO not path
+	uri, err := rest.MakeCallURL("watch-rec", path, true)
+	if err != nil {
+		return nil, err
+	}
+
+	var ch <-chan *streamReply
+	if ch, err = rest.CallStream(uri, nil); err != nil || ch == nil {
+		return nil, err
+	}
+
+	out := make(chan *WatchPathResult, 1)
+
+	type change struct {
+		Change string `json:""`
+		Key    Path   `json:""`
+	}
+
+	go func() {
+		defer close(out)
+		for m := range ch {
+
+			var q [2]json.RawMessage // array of raw messages
+			if err := json.Unmarshal(m.Result, &q); err != nil {
+				fmt.Printf("json(0): %s\n", m.Result)
+				panic(err) // TODO This should be returned to caller
+			}
+
+			var s string // first entry in array is string (commit hash)
+			if err := json.Unmarshal(q[0], &s); err != nil {
+				fmt.Printf("json(1): %s\n", q[0])
+				panic(err) // TODO This should be returned to caller
+			}
+			commit, err := hex.DecodeString(s)
+			if err != nil {
+				rest.log.Printf("Unable to decode commit hash from watch-rec (ignored): %s", s)
+				continue
+			}
+
+			var changes []json.RawMessage // second entry is array of string/path pairs
+			if err := json.Unmarshal(q[1], &changes); err != nil {
+				fmt.Printf("json(2): %s\n", q[1])
+				panic(err) // TODO This should be returned to caller
+			}
+
+			for _, pair := range changes {
+				var k []json.RawMessage // split pair in hash + path
+				if err := json.Unmarshal(pair, &k); err != nil {
+					fmt.Printf("json(3): %s\n", pair)
+					panic(err) // TODO This should be returned to caller
+				}
+				if len(k) != 2 {
+					panic(fmt.Errorf("Expected string/path pair array of len 2, actual len was %d", len(k)))
+				}
+
+				var changetype string
+				if err := json.Unmarshal(k[0], &changetype); err != nil {
+					fmt.Printf("json(4): %s\n", k[0])
+					panic(err) // TODO This should be returned to caller
+				}
+
+				var key Path
+				if err := json.Unmarshal(k[1], &key); err != nil {
+					fmt.Printf("json(5): %s\n", k[1])
+					panic(err) // TODO This should be returned to caller
+				}
+
+				c := new(WatchPathResult)
+				c.Commit = commit
+				c.Change = changetype
+				c.Key = key
 				out <- c
 			}
 		}

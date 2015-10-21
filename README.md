@@ -13,12 +13,14 @@ This code is work in progress and not all commands are implemented yet. The Irmi
  - clone, clone-force
  - compare-and-set
  - remove, remove-rec
+ - watch, watch-rec
  - view/{update, read, merge-path, update-path}
 
 ```
 irmin init -d -v --root /tmp/irmin/test -a http://:8080
 # examples
 go run examples/views/views.go
-go run examples/main.go
 go run examples/tree/tree.go
+go run examples/watch_single.go
+go run examples/main.go
 ```
