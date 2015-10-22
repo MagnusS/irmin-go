@@ -26,28 +26,29 @@ import (
 	"unicode/utf8"
 )
 
-type stringArrayReply struct {
-	Result  []Value
+type ErrorVersion struct {
 	Error   Value
 	Version Value
+}
+
+type stringArrayReply struct {
+	ErrorVersion
+	Result []Value
 }
 
 type stringReply struct {
-	Result  Value
-	Error   Value
-	Version Value
+	ErrorVersion
+	Result Value
 }
 
 type pathArrayReply struct {
-	Result  []Path
-	Error   Value
-	Version Value
+	ErrorVersion
+	Result []Path
 }
 
 type boolReply struct {
-	Result  bool
-	Error   Value
-	Version Value
+	ErrorVersion
+	Result bool
 }
 
 // Task describes the commit message stored in Irmin
@@ -405,8 +406,19 @@ func (rest *Conn) Iter() (<-chan *Path, error) {
 }
 
 // Watch a specific key for create/delete/update. Returns commit/value pairs. This function is not recursive (see WatchPath)
-func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO not path
+func (rest *Conn) Watch(path Path, firstCommit []byte) (<-chan *CommitValuePair, error) { // TODO not path
 	type watchKeyReply [][]Value // An array of arrays of commit/value pairs
+
+	var body *postRequest = nil
+	if firstCommit != nil {
+		body = new(postRequest)
+		body.Task = rest.NewTask("Watching db")
+		d, err := json.Marshal(hex.EncodeToString(firstCommit))
+		if err != nil {
+			return nil, err
+		}
+		body.Data = json.RawMessage(fmt.Sprintf("{ \"%s\", [] }", d))
+	}
 
 	uri, err := rest.MakeCallURL("watch", path, true)
 	if err != nil {
@@ -414,7 +426,7 @@ func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO no
 	}
 
 	var ch <-chan *streamReply
-	if ch, err = rest.CallStream(uri, nil); err != nil || ch == nil {
+	if ch, err = rest.CallStream(uri, body); err != nil || ch == nil {
 		return nil, err
 	}
 
@@ -424,10 +436,14 @@ func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO no
 		defer close(out)
 		for m := range ch {
 			p := new([][]Value)
-			if err := json.Unmarshal(m.Result, &p); err != nil {
+			if err := json.Unmarshal(m.Result, p); err != nil {
 				panic(err) // TODO This should be returned to caller
 			}
 			for _, q := range *p {
+				if len(q) != 2 {
+					rest.log.Printf("length of response longer than 2 (%d), ignored", len(q))
+					continue
+				}
 				c := new(CommitValuePair)
 				c.Commit, err = hex.DecodeString(q[0].String())
 				if err != nil {
@@ -444,10 +460,20 @@ func (rest *Conn) Watch(path Path) (<-chan *CommitValuePair, error) { // TODO no
 }
 
 // WatchPath watches a path recursively. Returns keys that are updated, deleted or created.
-func (rest *Conn) WatchPath(path Path) (<-chan *WatchPathResult, error) { // TODO not path
+func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathResult, error) { // TODO not path
 	uri, err := rest.MakeCallURL("watch-rec", path, true)
 	if err != nil {
 		return nil, err
+	}
+
+	var body *postRequest
+	if firstCommit != nil {
+		body = new(postRequest)
+		d, err := json.Marshal(hex.EncodeToString(firstCommit))
+		if err != nil {
+			return nil, err
+		}
+		body.Data = d
 	}
 
 	var ch <-chan *streamReply

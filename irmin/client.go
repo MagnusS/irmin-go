@@ -71,7 +71,7 @@ func (c *client) Call(uri *url.URL, post *postRequest, v interface{}) (err error
 }
 
 // CallStream connects to the given URL and returns a channel with responses until the stream is closed. The channel contains raw replies and must be unmarshaled by the caller.
-func (c *Conn) CallStream(uri *url.URL, post *postRequest) (_ <-chan *streamReply, err error) {
+func (c *Conn) CallStream(uri *url.URL, post *postRequest) (<-chan *streamReply, error) {
 	var streamToken struct {
 		Stream Value
 	}
@@ -80,6 +80,7 @@ func (c *Conn) CallStream(uri *url.URL, post *postRequest) (_ <-chan *streamRepl
 	}
 
 	var res *http.Response
+	var err error
 
 	if post == nil {
 		res, err = http.Get(uri.String())
@@ -91,7 +92,7 @@ func (c *Conn) CallStream(uri *url.URL, post *postRequest) (_ <-chan *streamRepl
 		res, err = http.Post(uri.String(), "application/json", bytes.NewBuffer(j))
 	}
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	wg := sync.WaitGroup{}
@@ -103,18 +104,45 @@ func (c *Conn) CallStream(uri *url.URL, post *postRequest) (_ <-chan *streamRepl
 	}()
 
 	dec := json.NewDecoder(res.Body)
-	if _, err = dec.Token(); err != nil { // read [ token
-		return
+	var t interface{}
+	if t, err = dec.Token(); err != nil { // read [ token
+		return nil, err
+	}
+	switch t.(type) {
+	case json.Delim:
+		d := t.(json.Delim).String()
+		if d != "[" {
+			descr := fmt.Errorf("expected [, got %s", d) // If we are unable to unmarshal error msg, return this error
+			// Invalid format. Try to unmarshal error value, in case it was returned outside the stream
+			rest, err := ioutil.ReadAll(res.Body)
+			if err != nil {
+				return nil, err
+			}
+			buf, err := ioutil.ReadAll(dec.Buffered())
+			all := append([]byte(d), append(buf, rest...)...)
+			var errormsg ErrorVersion
+			err = json.Unmarshal(all, &errormsg)
+			if err != nil {
+				return nil, descr
+			}
+			if errormsg.Error != nil {
+				return nil, fmt.Errorf("Server returned an error: %s", errormsg.Error.String())
+			}
+			return nil, descr
+		}
+	default:
+		err = fmt.Errorf("expected delimiter")
+		return nil, err
 	}
 
 	err = dec.Decode(&streamToken)
 	if err != nil || !bytes.Equal(streamToken.Stream, []byte("start")) { // look for stream start
-		return
+		return nil, err
 	}
 
 	err = dec.Decode(&version)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	ch := make(chan *streamReply, 100)
