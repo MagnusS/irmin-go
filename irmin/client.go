@@ -19,6 +19,7 @@ package irmin
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -57,6 +58,9 @@ func (c *client) Call(uri *url.URL, post *postRequest, v interface{}) (err error
 		return
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return fmt.Errorf("Irmin HTTP server returned status %#v", res.Status)
+	}
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return
