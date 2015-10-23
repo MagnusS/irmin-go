@@ -44,11 +44,14 @@ func main() {
 	key := irmin.ParsePath("/")
 	fmt.Printf("Watching %s\n", key.String())
 	fmt.Printf("(run examples/views/views.go example to test)\n")
-	ch, err := r.WatchPath(key)
+	ch, err := r.WatchPath(key, nil)
 	if err != nil {
 		panic(err)
 	}
-	for c := range ch {
-		fmt.Printf("commit: %s change: %s key: %s\n", hex.EncodeToString(c.Commit), c.Change, c.Key.String())
+	for a := range ch {
+		fmt.Printf("commit: %s\n", hex.EncodeToString(a.Commit))
+		for _, c := range a.Changes {
+			fmt.Printf("  %s %s\n", c.Change, c.Key.String())
+		}
 	}
 }

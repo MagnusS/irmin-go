@@ -71,11 +71,17 @@ const (
 	KeyUpdated = "*"
 )
 
-// WatchPathResult contains a commit and an updated, deleted or created key as returned by WatchPath
-type WatchPathResult struct {
-	Commit []byte
-	Change string // Updated, Created, Deleted
+// WatchPathChange contains one change received from a watch, usually as a part of WatchPathCommit
+type WatchPathChange struct {
+	Change string // *=Updated, +=Created, -=Deleted
 	Key    Path
+}
+
+// WatchPathCommit contains a commit and updated, deleted or created keys as returned by WatchPath
+type WatchPathCommit struct {
+	Commit  []byte
+	Changes []WatchPathChange
+	Error   error // Only set if an error occurred and the watch needs to be restarted
 }
 
 type postRequest struct {
@@ -413,11 +419,8 @@ func (rest *Conn) Watch(path Path, firstCommit []byte) (<-chan *CommitValuePair,
 	if firstCommit != nil {
 		body = new(postRequest)
 		body.Task = rest.NewTask("Watching db")
-		d, err := json.Marshal(hex.EncodeToString(firstCommit))
-		if err != nil {
-			return nil, err
-		}
-		body.Data = json.RawMessage(fmt.Sprintf("{ \"%s\", [] }", d))
+		s := hex.EncodeToString(firstCommit)
+		body.Data = json.RawMessage(fmt.Sprintf("[\"%s\", \"%s\"]", s, "hei"))
 	}
 
 	uri, err := rest.MakeCallURL("watch", path, true)
@@ -459,21 +462,20 @@ func (rest *Conn) Watch(path Path, firstCommit []byte) (<-chan *CommitValuePair,
 	return out, err
 }
 
-// WatchPath watches a path recursively. Returns keys that are updated, deleted or created.
-func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathResult, error) { // TODO not path
+// WatchPath watches a path recursively. Returns keys that are updated, deleted or created. On error, the last item in the channel
+// will have .Error set - the channel is then closed.
+func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathCommit, error) { // TODO not path
 	uri, err := rest.MakeCallURL("watch-rec", path, true)
 	if err != nil {
 		return nil, err
 	}
 
-	var body *postRequest
+	var body *postRequest = nil
 	if firstCommit != nil {
 		body = new(postRequest)
-		d, err := json.Marshal(hex.EncodeToString(firstCommit))
-		if err != nil {
-			return nil, err
-		}
-		body.Data = d
+		body.Task = rest.NewTask("Watching db")
+		s := hex.EncodeToString(firstCommit)
+		body.Data = json.RawMessage(fmt.Sprintf("[\"%s\"]", s, s))
 	}
 
 	var ch <-chan *streamReply
@@ -481,7 +483,7 @@ func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathRes
 		return nil, err
 	}
 
-	out := make(chan *WatchPathResult, 1)
+	out := make(chan *WatchPathCommit, 1)
 
 	type change struct {
 		Change string `json:""`
@@ -491,17 +493,22 @@ func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathRes
 	go func() {
 		defer close(out)
 		for m := range ch {
+			c := new(WatchPathCommit)
 
 			var q [2]json.RawMessage // array of raw messages
 			if err := json.Unmarshal(m.Result, &q); err != nil {
 				fmt.Printf("json(0): %s\n", m.Result)
-				panic(err) // TODO This should be returned to caller
+				c.Error = err
+				out <- c
+				return
 			}
 
 			var s string // first entry in array is string (commit hash)
 			if err := json.Unmarshal(q[0], &s); err != nil {
 				fmt.Printf("json(1): %s\n", q[0])
-				panic(err) // TODO This should be returned to caller
+				c.Error = err
+				out <- c
+				return
 			}
 			commit, err := hex.DecodeString(s)
 			if err != nil {
@@ -512,37 +519,49 @@ func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathRes
 			var changes []json.RawMessage // second entry is array of string/path pairs
 			if err := json.Unmarshal(q[1], &changes); err != nil {
 				fmt.Printf("json(2): %s\n", q[1])
-				panic(err) // TODO This should be returned to caller
+				c.Error = err
+				out <- c
+				return
 			}
 
-			for _, pair := range changes {
+			c.Commit = commit
+			c.Changes = make([]WatchPathChange, len(changes))
+
+			for x, pair := range changes {
 				var k []json.RawMessage // split pair in hash + path
 				if err := json.Unmarshal(pair, &k); err != nil {
 					fmt.Printf("json(3): %s\n", pair)
-					panic(err) // TODO This should be returned to caller
+					c.Error = err
+					out <- c
+					return
 				}
 				if len(k) != 2 {
-					panic(fmt.Errorf("Expected string/path pair array of len 2, actual len was %d", len(k)))
+					c.Error = fmt.Errorf("Expected string/path pair array of len 2, actual len was %d", len(k))
+					out <- c
+					return
 				}
 
 				var changetype string
 				if err := json.Unmarshal(k[0], &changetype); err != nil {
 					fmt.Printf("json(4): %s\n", k[0])
-					panic(err) // TODO This should be returned to caller
+					c.Error = err
+					out <- c
+					return
 				}
 
 				var key Path
 				if err := json.Unmarshal(k[1], &key); err != nil {
 					fmt.Printf("json(5): %s\n", k[1])
-					panic(err) // TODO This should be returned to caller
+					c.Error = err
+					out <- c
+					return
 				}
 
-				c := new(WatchPathResult)
-				c.Commit = commit
-				c.Change = changetype
-				c.Key = key
-				out <- c
+				c.Changes[x].Change = changetype
+				c.Changes[x].Key = key
 			}
+
+			out <- c
 		}
 	}()
 
