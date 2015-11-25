@@ -252,7 +252,7 @@ func (rest *Conn) Mem(path Path) (bool, error) {
 	return data.Result, nil
 }
 
-// Head returns the commit hash of HEAD
+// Head returns the commit hash of HEAD. Returns nil if no current HEAD (db is empty)
 func (rest *Conn) Head() ([]byte, error) {
 	var data headReply
 	uri, err := rest.MakeCallURL("head", nil, true)
@@ -274,6 +274,9 @@ func (rest *Conn) Head() ([]byte, error) {
 			return []byte{}, fmt.Errorf("Unable to parse hash from Irmin: %s", data.Result[0])
 		}
 		return hash, nil
+	}
+	if len(data.Result) == 0 {
+		return nil, nil
 	}
 	return []byte{}, fmt.Errorf("Invalid data from Irmin.")
 }
