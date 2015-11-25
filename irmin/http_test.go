@@ -31,16 +31,16 @@ import (
 )
 
 func irminExec(t *testing.T, cmd string, args ...string) error {
-	full_args := []string{cmd, "-s", "http", "--uri", "http://127.0.0.1:8085"}
-	full_args = append(full_args, args...)
-	t.Log("Running irmin %s", full_args)
-	return exec.Command("irmin", full_args...).Run()
+	fullArgs := []string{cmd, "-s", "http", "--uri", "http://127.0.0.1:8085"}
+	fullArgs = append(fullArgs, args...)
+	t.Log("Running irmin %s", fullArgs)
+	return exec.Command("irmin", fullArgs...).Run()
 }
 
 func spawnIrmin(t *testing.T) *exec.Cmd {
 	t.Log("Starting Irmin")
 	c := exec.Command("irmin", "init", "-d", "-v", "-s", "mem", "-a", "http://127.0.0.1:8085")
-	//c := exec.Command("irmin", "init", "-d", "-v", "--root", "irmin_test", "-a", "http://:8080")
+	//c := exec.Command("irmin", "init", "-d", "-v", "--root", "irmin_test", "-a", "http://:8085")
 	stdout, err := c.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -166,13 +166,8 @@ func TestWatch(t *testing.T) {
 
 	// expect function waits for expected result with a timeout
 	expect := func(ch <-chan *CommitValuePair, path Path, val []byte) {
-		// Timeout channel
-		timeout := make(chan bool, 1)
-		go func() {
-			time.Sleep(1 * time.Second)
-			timeout <- true
-		}()
 		// Wait for Watch result or timeout
+		timeout := time.After(1 * time.Second)
 		select {
 		case v := <-ch:
 			if bytes.Compare(v.Value, val) != 0 {

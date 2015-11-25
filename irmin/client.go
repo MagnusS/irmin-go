@@ -26,22 +26,25 @@ import (
 	"sync"
 )
 
-type client struct {
-	baseURI *url.URL
-	log     Log
+// Client contains basic state needed to connect to Irmin
+type Client struct {
+	baseURI *url.URL // Irmin base URI
+	log     Log      // Logger
 }
 
-type streamReply struct {
+// StreamReply contains one reply received from an Irmin stream
+type StreamReply struct {
 	Error  Value
 	Result json.RawMessage
 }
 
-func NewClient(uri *url.URL, log Log) *client {
-	return &client{uri, log}
+// NewClient creates a new client data structure
+func NewClient(uri *url.URL, log Log) *Client {
+	return &Client{uri, log}
 }
 
 // Call connects to the specified URL and attempts to unmarshal the reply. The result is stored in v.
-func (c *client) Call(uri *url.URL, post *postRequest, v interface{}) (err error) {
+func (c *Client) Call(uri *url.URL, post *postRequest, v interface{}) (err error) {
 	c.log.Printf("calling: %s\n", uri.String())
 	var res *http.Response
 	if post == nil {
@@ -71,7 +74,7 @@ func (c *client) Call(uri *url.URL, post *postRequest, v interface{}) (err error
 }
 
 // CallStream connects to the given URL and returns a channel with responses until the stream is closed. The channel contains raw replies and must be unmarshaled by the caller.
-func (c *Conn) CallStream(uri *url.URL, post *postRequest) (<-chan *streamReply, error) {
+func (c *Client) CallStream(uri *url.URL, post *postRequest) (<-chan *StreamReply, error) {
 	var streamToken struct {
 		Stream Value
 	}
@@ -145,7 +148,7 @@ func (c *Conn) CallStream(uri *url.URL, post *postRequest) (<-chan *streamReply,
 		return nil, err
 	}
 
-	ch := make(chan *streamReply, 100)
+	ch := make(chan *StreamReply, 100)
 	wg.Add(1)
 	go func() {
 		defer func() {
@@ -154,7 +157,7 @@ func (c *Conn) CallStream(uri *url.URL, post *postRequest) (<-chan *streamReply,
 		}()
 
 		for dec.More() {
-			s := new(streamReply)
+			s := new(StreamReply)
 			if err = dec.Decode(s); err != nil {
 				return
 			}

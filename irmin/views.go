@@ -209,7 +209,7 @@ func (view *View) UpdatePath(t Task, tree string, path Path) error {
 
 // Iter iterates through all keys in a view. Returns results in a channel as they are received.
 func (view *View) Iter() (<-chan *Path, error) {
-	var ch <-chan *streamReply
+	var ch <-chan *StreamReply
 	var err error
 	cmd := fmt.Sprintf("view/%s/iter", url.QueryEscape(view.node))
 	uri, err := view.srv.MakeCallURL(cmd, Path{}, false)

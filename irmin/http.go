@@ -26,6 +26,7 @@ import (
 	"unicode/utf8"
 )
 
+// ErrorVersion contains the error version returned by Irmin
 type ErrorVersion struct {
 	Error   Value
 	Version Value
@@ -66,8 +67,11 @@ type CommitValuePair struct {
 }
 
 const (
+	// KeyDeleted is a change type returned by WatchPath when a key is deleted
 	KeyDeleted = "-"
+	// KeyCreated is change type returned by WatchPath when a key is created
 	KeyCreated = "+"
+	// KeyUpdated is change tpye returned by WatchPath when a key is updated
 	KeyUpdated = "*"
 )
 
@@ -101,7 +105,7 @@ type headReply stringArrayReply
 
 // Conn is an Irmin REST API connection
 type Conn struct {
-	client
+	Client
 	tree      string
 	taskowner string
 }
@@ -109,7 +113,7 @@ type Conn struct {
 // Create an Irmin REST HTTP connection data structure
 func Create(uri *url.URL, taskowner string) *Conn {
 	r := new(Conn)
-	r.client = *NewClient(uri, IgnoreLog{})
+	r.Client = *NewClient(uri, IgnoreLog{})
 	r.taskowner = taskowner
 	return r
 }
@@ -393,7 +397,7 @@ func (rest *Conn) Iter() (<-chan *Path, error) {
 	if err != nil {
 		return nil, err
 	}
-	var ch <-chan *streamReply
+	var ch <-chan *StreamReply
 	if ch, err = rest.CallStream(uri, nil); err != nil || ch == nil {
 		return nil, err
 	}
@@ -418,7 +422,7 @@ func (rest *Conn) Iter() (<-chan *Path, error) {
 func (rest *Conn) Watch(path Path, firstCommit []byte) (<-chan *CommitValuePair, error) { // TODO not path
 	type watchKeyReply [][]Value // An array of arrays of commit/value pairs
 
-	var body *postRequest = nil
+	var body *postRequest
 	if firstCommit != nil {
 		body = new(postRequest)
 		body.Task = rest.NewTask("Watching db")
@@ -431,7 +435,7 @@ func (rest *Conn) Watch(path Path, firstCommit []byte) (<-chan *CommitValuePair,
 		return nil, err
 	}
 
-	var ch <-chan *streamReply
+	var ch <-chan *StreamReply
 	if ch, err = rest.CallStream(uri, body); err != nil || ch == nil {
 		return nil, err
 	}
@@ -473,7 +477,7 @@ func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathCom
 		return nil, err
 	}
 
-	var body *postRequest = nil
+	var body *postRequest
 	if firstCommit != nil {
 		body = new(postRequest)
 		body.Task = rest.NewTask("Watching db")
@@ -481,7 +485,7 @@ func (rest *Conn) WatchPath(path Path, firstCommit []byte) (<-chan *WatchPathCom
 		body.Data = json.RawMessage(fmt.Sprintf("[\"%s\"]", s, s))
 	}
 
-	var ch <-chan *streamReply
+	var ch <-chan *StreamReply
 	if ch, err = rest.CallStream(uri, nil); err != nil || ch == nil {
 		return nil, err
 	}
