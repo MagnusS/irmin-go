@@ -2,6 +2,11 @@
 
 This library is a Go implementation of the [Irmin](https://github.com/mirage/irmin.git) HTTP API. The HTTP API is partly documented [here](https://github.com/mirage/irmin/wiki/REST-API). Not all calls are available in Irmin version 0.10.0 or older. `Version()` can be used to check the Irmin version.
 
+To install this library, run:
+```bash
+go get https://github.com/MagnusS/irmin-go/irmin
+```
+
 #### Examples
 
 ##### Connecting to Irmin
